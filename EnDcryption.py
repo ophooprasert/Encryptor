@@ -2,26 +2,41 @@
 import random
 import time
 from pyLogger import Log
+from function_timer import measure_time
 import string
 import os
 import sys
 import getopt
+from Tkinter import *
+import Tkinter, Tkconstants, tkFileDialog, tkMessageBox
 Log.setLoglvl(60)
 
-def encrypt_line(_line, _encoding, _seed):
+def encrypt_line(_line, _encoding, _seed, encoded_count=None):
     erndm = random.Random()
     erndm.seed(_seed)
     encrypted_line = ''
     for char in _line:
         char_keys = _encoding[erndm.randint(0,3)]
+        encoded_key = char_keys[char]
+        if encoded_count != None:
+            if encoded_key not in encoded_count:
+                encoded_count[encoded_key] = 1
+            else:
+                encoded_count[encoded_key] += 1
         encrypted_line += char_keys[char]
-    return encrypted_line
+    if encoded_count:
+        return encrypted_line, encoded_count
+    else:
+        return encrypted_line
 
 def print_dict(_dict):
     for k, val in _dict.items():
         print k, ':', val
+
+def msg_box(_title, _description):
+    tkMessageBox.showinfo(_title, _description)
   
-def main():
+def dev_mode():
     def usage():
         print ('    Cannot do both in one run, choose to Encrypt or Decrypt Documents:')
         print ('\t -e : --encrypt \t| File to encrypt. (Filename/FilePath)')
@@ -57,6 +72,7 @@ def main():
         elif o in ("-k", "--key"):
             checkflag += 1
             key_file = a
+    '''
     if not opts:
         action = str(raw_input('Encrypt or Decrypt? (e/d): '))
         if action == 'e':
@@ -73,19 +89,21 @@ def main():
             time.sleep(5)
             sys.exit(2)
     else:
-        if set_encrypt:
-            print('Start Encryption...')
-            encrypt_file(encrypt_filename)
-            print('Finished Encrypting...')
-            return None
+    '''
+    if set_encrypt:
+        print('Start Encryption...')
+        encrypt_file(encrypt_filename)
+        print('Finished Encrypting...')
+        return None
+    else:
+        if checkflag != 2:
+            print ('Missing Encryption Key!')
+            usage()
+            sys.exit(2)
+        ##### decrypt file ######
         else:
-            if checkflag != 2:
-                print ('Missing Encryption Key!')
-                usage()
-                sys.exit(2)
-            ##### decrypt file ######
-            else:
-                return decrypt_file(key_file, decrypt_filename)
+            decrypt_file(key_file, decrypt_filename)
+            return 
 
 def encrypt_key(_key):
     converted_key_string = ''
@@ -164,11 +182,14 @@ def decrypt_key(_key_file):
                     else:
                         if ind != 0:
                             found_err = True
-
             if not found_entry and found_err:
                 print("WRONG PRIVATE KEY!!!!")
+                msg_box("Error", "WRONG PRIVATE KEY!!!!")
+                return None
             elif found_entry and found_err:
                 print("Cannot find correct encoding for private key")
+                msg_box("Error","Cannot find correct encoding for private key")
+                return None
             else:    
                 key_values += encoding[read_file[-8:]]
         split_kvalues = key_values.split()
@@ -184,14 +205,17 @@ def decrypt_key(_key_file):
     except IOError as e:
         Log.CRITICAL(e)
         print('Cannot find encrypted file: ' + encrypted_file)
+        msg_box("Error", 'Cannot find encrypted file: ' + encrypted_file)
         time.sleep(5)
         sys.exit(2)
-            
+         
 def encrypt_file(_filename):
     largest_charnumber = 0
     encrypted_keys = []
     ids = []
+    encoded_count = {}
     char_keys = []
+    char_count = {}
     _filelines = []
     _encoding = [{}, {}, {}, {}]
     
@@ -204,12 +228,17 @@ def encrypt_file(_filename):
                 _filelines.append(line)
     except IOError as e:
         print("Cannot find file to encrypt: " + _filename)
+        msg_box('Error','Cannot find file to encrypt: ' + _filename)
         Log.CRITICAL(e)
         time.sleep(5)
         sys.exit(2)
         
     for line in _filelines:
         for char in line:
+            if char not in char_count:
+                char_count[char] = 1
+            else:
+                char_count[char] += 1
             if largest_charnumber < ord(char):
                 largest_charnumber = ord(char)
 
@@ -244,11 +273,10 @@ def encrypt_file(_filename):
 
     with open(new_filename, 'w') as _nfile:
         for line in _filelines:
-            eline = encrypt_line(line, _encoding, first_seed)
+            eline, encoded_count = encrypt_line(line, _encoding, first_seed, encoded_count)
             _nfile.write(eline)
 
-
-    
+#@measure_time('Decrypt_Time')    
 def decrypt_file(key_file, encrypted_file):
     dict_char = []
     ids = []
@@ -256,6 +284,8 @@ def decrypt_file(key_file, encrypted_file):
     
     #Decrypt Key
     e_key = decrypt_key(key_file)
+    if not e_key:
+        return
     
     #Get characters to map
     for number in range(e_key[0][3]):
@@ -295,20 +325,21 @@ def decrypt_file(key_file, encrypted_file):
             if not found_entry and found_err:
                 Log.WARNING('Wrong Key')
                 print("WRONG ENCRYPTION KEY!!!!")
+                msg_box('Error', "WRONG ENCRYPTION KEY!!!!")
             elif found_entry and found_err:
                 print("Cannot find correct encoding... (Possibly Wrong Encryption Key). (Turn on Logging to debug)")
+                msg_box('Error', "Cannot find correct encoding... (Possibly Wrong Encryption Key). (Turn on Logging to debug)")
             else:    
                 new_file += encoding[read_file[-8:]]
     except IOError as e:
         Log.CRITICAL(e)
         print('Cannot find encrypted file: ' + encrypted_file)
+        msg_box('Error','Cannot find encrypted file: ' + encrypted_file) 
         time.sleep(5)
         sys.exit(2)
     new_filename = 'DCDocument_'+str(int(time.time()))+'.txt'
     with open(new_filename, 'w') as dfile:
         dfile.write(new_file)
-    print('Decryption Complete!')
-    return new_filename
 
 def gen_evalue(_ekey,_eseed, ids):
     ekey_value = ''
@@ -338,29 +369,79 @@ def gen_evalue(_ekey,_eseed, ids):
             break
     return ekey_value
 
+#@measure_time('Key_Time')
 def generate_ekey(num_of_char):
     time.sleep(random.randint(1,4))
     _startseed = random.randrange(1,1000)
     tval = int(time.time())
     tval_end = random.randint(4,5)
     return [_startseed, tval_end, tval, num_of_char]
+
+class App:
+    def __init__(self, master):
+        frame = Frame(master)
+        frame.pack(side=BOTTOM)
+        self.lb1 = Label(master, text="Select Option...")
+        self.lb1.pack(side=TOP)
+        self.button = Button(
+            frame, text="QUIT", fg="red", command=master.destroy
+            )
+        self.button.pack(side=RIGHT)
+
+        self.encrypt = Button(frame, text="Encrypt",
+                              command=lambda:encrypt_ui(self.lb1))
+        self.encrypt.pack(side=LEFT)
+
+        self.decrypt = Button(frame, text="Decrypt",
+                              command=lambda:decrypt_ui(self.lb1))
+        self.decrypt.pack(side=RIGHT)
+        
+        self.lb1.config(text="Select Option...")
+
+
+def encrypt_ui(_label):
+    cwd = os.getcwd()
+    _label.config(text="Encrypting...")
+    filename = tkFileDialog.askopenfilename(initialdir = cwd,
+    title = "Select file",filetypes = (("txt files","*.txt"),
+                                       ("all files","*.*")))
+    if not filename:
+        msg_box("Missing File", "Missing File to Encrypt!")
+        return _label.config(text="Select Option...")
+    
+    encrypt_file(filename)
+    _label.config(text="Finished Encryption!")
+    msg_box("Completed", "Finished Encryption!")
+    
+def decrypt_ui(_label):
+    cwd = os.getcwd()
+    _label.config(text="Decrypting...")
+
+    filename = tkFileDialog.askopenfilename(initialdir = cwd,
+    title = "Select Decryption File",filetypes =(("dat files","*.dat"),))
+    if not filename:
+        msg_box("Missing File", "Missing Decryption File!")
+        return _label.config(text="Select Option...")
+                              
+    key_filename = tkFileDialog.askopenfilename(initialdir = cwd,
+    title = "Select Key File",filetypes = (("dat files","*.dat"),))
+    if not key_filename:
+        msg_box("Missing File", "Missing Decryption File!")
+        return _label.config(text="Select Option...")
+    
+    decrypt_file(key_filename, filename)
+    _label.config(text="Finished Decryption!")
+    msg_box("Completed", "Finished Decryption!")
+
     
 if __name__ == '__main__':
-    fname = main()
-    #encrypt_key([[371, 4, 1527194082, 151], [208, 5, 1527194085, 151], [802, 5, 1527194086, 151], [189, 5, 1527194090, 151]])
-    #encrypt_file('test_text2.txt')
-
-    #fname = 'DCDocument_1526996198.txt'
-    '''
-    if fname:
-        with open('test_text.txt', 'r') as file1:
-            read_file1 = file1.read()
-        with open(fname, 'r') as file2:
-            read_file2 = file2.read()
-
-        if read_file1 == read_file2:
-            print 'TRUE'
-        else:
-            print 'FALSE'
-    '''
+    if sys.argv[1:]:
+        dev_mode()
+    else:
+        root = Tk()
+        root.title("EnDcryption")
+        root.geometry("200x50")
+        root.resizable(0, 0)
+        app = App(root)
+        root.mainloop()
 
