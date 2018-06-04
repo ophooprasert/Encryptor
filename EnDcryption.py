@@ -275,7 +275,7 @@ def encrypt_file(_filename):
     _filename_wo_ext = _filename[:_filename.find('.')]
     new_filename = _filename_wo_ext + '_encrypted.dat'
 
-    with open(new_filename, 'w') as _nfile:
+    with open(new_filename, 'wb') as _nfile:
         for line in _filelines:
             eline, encoded_count = encrypt_line(line, _encoding, first_seed, encoded_count)
             _nfile.write(eline)
@@ -440,7 +440,7 @@ def decrypt_ui(_label):
     
 if __name__ == '__main__':
     if sys.argv[1:]:
-        main()
+        dev_mode()
     else:
         root = Tk()
         root.title("EnDcryption")
@@ -448,4 +448,5 @@ if __name__ == '__main__':
         root.resizable(0, 0)
         app = App(root)
         root.mainloop()
+        
 
