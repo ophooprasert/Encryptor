@@ -105,15 +105,15 @@ def dev_mode():
             decrypt_file(key_file, decrypt_filename)
             return 
 
-def encrypt_key(_key):
+def encrypt_key(_key, f_ext):
     converted_key_string = ''
     _public_key = []
     char_keys = []
     ids = []
     _encoding = [{}, {}, {}, {}]
-    _private_key = [[326, 4, 1527194773, 58], [714, 4, 1527194777, 58], [831, 5, 1527194781, 58], [189, 4, 1527194783, 58]]
+    _private_key = [[326, 4, 1527194773, 123], [714, 4, 1527194777, 123], [831, 5, 1527194781, 123], [189, 4, 1527194783, 123]]
     
-    for number in range(58):
+    for number in range(123):
         new_char = chr(number)
         if new_char not in char_keys:
             char_keys.append(new_char)
@@ -123,6 +123,7 @@ def encrypt_key(_key):
             converted_key_string += str(number) + ' '
         _public_key.append(converted_key_string)
         converted_key_string = ''
+    _public_key.append(f_ext)
     
     for char in char_keys:
         for ind in range(len(_private_key)):
@@ -133,7 +134,7 @@ def encrypt_key(_key):
             else:
                 ids.append(eval_check)
             _encoding[ind][char] = eval_check
-
+    
     with open('key.dat', 'w') as _kfile:
         _kfile.write('')
 
@@ -149,7 +150,7 @@ def decrypt_key(_key_file):
     _key = []
     all_keys = []
     new_key_counter =0
-    _private_key = [[326, 4, 1527194773, 58], [714, 4, 1527194777, 58], [831, 5, 1527194781, 58], [189, 4, 1527194783, 58]]
+    _private_key = [[326, 4, 1527194773, 123], [714, 4, 1527194777, 123], [831, 5, 1527194781, 123], [189, 4, 1527194783, 123]]
     for number in range(_private_key[0][3]):
         new_char = chr(number)
         if new_char not in dict_char:
@@ -193,14 +194,15 @@ def decrypt_key(_key_file):
             else:    
                 key_values += encoding[read_file[-8:]]
         split_kvalues = key_values.split()
-        for val in range(len(split_kvalues)):
+        f_ext = split_kvalues[-1]
+        for val in range(len(split_kvalues)-1):
             new_key_counter += 1
             _key.append(int(split_kvalues[val]))
             if new_key_counter == 4:
                 all_keys.append(_key)
                 _key = []
                 new_key_counter = 0
-        return all_keys
+        return all_keys, f_ext
                 
     except IOError as e:
         Log.CRITICAL(e)
@@ -218,21 +220,22 @@ def encrypt_file(_filename):
     char_count = {}
     _filelines = []
     _encoding = [{}, {}, {}, {}]
-    
+    file_ext = _filename[_filename.find('.'):]
     with open('key.dat', 'w') as _kfile:
         _kfile.write('')
         
     try:
-        with open(_filename, 'r') as _file:
+        with open(_filename, 'rb') as _file:
             for line in _file:
                 _filelines.append(line)
+                
     except IOError as e:
         print("Cannot find file to encrypt: " + _filename)
         msg_box('Error','Cannot find file to encrypt: ' + _filename)
         Log.CRITICAL(e)
         time.sleep(5)
         sys.exit(2)
-        
+            
     for line in _filelines:
         for char in line:
             if char not in char_count:
@@ -241,7 +244,7 @@ def encrypt_file(_filename):
                 char_count[char] += 1
             if largest_charnumber < ord(char):
                 largest_charnumber = ord(char)
-
+                
     for number in range(largest_charnumber+1):
         new_char = chr(number)
         if new_char not in char_keys:
@@ -255,7 +258,7 @@ def encrypt_file(_filename):
     erndm.seed(first_seed)
 
     #Encrypt Key
-    encrypt_key(encrypted_keys)
+    encrypt_key(encrypted_keys, file_ext)
 
     #Encode characters
     for char in char_keys:
@@ -269,7 +272,8 @@ def encrypt_file(_filename):
             _encoding[ind][char] = eval_check
             
     #Write to new file
-    new_filename = _filename[:-4] + '_encrypted.dat'
+    _filename_wo_ext = _filename[:_filename.find('.')]
+    new_filename = _filename_wo_ext + '_encrypted.dat'
 
     with open(new_filename, 'w') as _nfile:
         for line in _filelines:
@@ -283,7 +287,7 @@ def decrypt_file(key_file, encrypted_file):
     encoding = {}
     
     #Decrypt Key
-    e_key = decrypt_key(key_file)
+    e_key, file_ext = decrypt_key(key_file)
     if not e_key:
         return
     
@@ -337,8 +341,8 @@ def decrypt_file(key_file, encrypted_file):
         msg_box('Error','Cannot find encrypted file: ' + encrypted_file) 
         time.sleep(5)
         sys.exit(2)
-    new_filename = 'DCDocument_'+str(int(time.time()))+'.txt'
-    with open(new_filename, 'w') as dfile:
+    new_filename = 'DCDocument_'+str(int(time.time()))+ file_ext
+    with open(new_filename, 'wb') as dfile:
         dfile.write(new_file)
 
 def gen_evalue(_ekey,_eseed, ids):
@@ -436,7 +440,7 @@ def decrypt_ui(_label):
     
 if __name__ == '__main__':
     if sys.argv[1:]:
-        dev_mode()
+        main()
     else:
         root = Tk()
         root.title("EnDcryption")
